@@ -12,67 +12,49 @@
             justify-content: center;
             align-items: center;
             width: 100%;
-            height: 100vh; /* 使容器高度占满视口高度 */
+            height: 100vh;
         }
         
         
         #panelContainer {
             display: flex;
             flex-direction: column;
-            align-items: center;
-            width: 90%;
+            align-items: center; /* 水平居中 */
+            width: 90vw;
             border: 1px solid #aaa;
             margin: 10px 0;
+        }
+
+        #canvas2D {
+            display: flex;
+            flex-direction: column;
+            align-items: center; /* 水平居中 */
+            position: relative;
+            width: 90vw;
+            height: 100%;
+            border: 1px solid #aaa;
+            background-color: #fff;
         }
 
         #panelContainer .panel {
             background-color: #f7f7f7;
             border: 1px solid #aaa;
-            width: 80%;
-            margin-bottom: 5px;
-        }
-        
-
-        #controlPanel {
-            display: flex;
-            height: 4em;
+            width: 90%;
+            margin: 10px 10px;
         }
 
-        #controlPanel input {
-            width: 4em; /* 设置 PID 控制输入框的宽度 */
+        #controlPanel input[type="number"] {
+            width: 4em;
         }
 
-        #controlPanel span {
-            margin: 0 1em;
+        #pid-config span {
+            margin: 0.5em;
         }
-
-
-        #statusPanel {
-            display: flex;
-        }
-
-        #statusPanel div {
-            margin: 0 1em;
-        }
-
 
         fieldset legend {
             font-size: 0.8em;
             font-weight: bold;
         }
-        
-
-        #trackingArea {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            position: relative;
-            width: 90%;
-            height: 70%;
-            background-color: #fff;
-            border: 1px solid #aaa;
-        }
-        
 
         #target, #chaser {
             position: absolute;
@@ -104,58 +86,99 @@
             width: 90%;
         }
 
+
+        .grid-container {
+            display: grid;
+            grid-gap: 5px; /* 网格项之间的间距 */
+        }
+        .grid-item {
+            border: 0px solid #000;
+        }
+
+        .btn {
+            padding: 0.5em 1em;
+            border: 1px solid #e4e4e4;
+            border-radius: 5px;
+            background-color: none;
+            cursor: pointer;
+        }
+        .btn:hover {
+            background-color: #e7e7e7;
+        }
+        .btn-down {
+            border: 1px solid #07C160;
+        }
+
+
     </style>
 </head>
 <body>
     <div>Chaser - 可视化你的控制函数</div>
-    <div id="panelContainer">
-        <fieldset id="controlPanel" class="panel" style="display: grid; grid-template-columns: repeat(2, 1fr);">
-            <legend>控制面板</legend>
-            <div style="display: grid; grid-template-rows: 2;">
-                <span>
-                    <input type="radio" id="mode-pid" name="controller" checked><label for="pid">PID</label>
-                </span>
-                <span>
-                    <input type="radio" id="mode-func" name="controller"><label for="transferFunction">传递函数</label>
-                </span>
-            </div>
-            <div id="pid-config">
-                <span> <label for="pGain">P:</label><input type="number" id="pGain" value="50" step="10"> e-3</span>
-                <span> <label for="iGain">I:</label><input type="number" id="iGain" value="0" step="10"> e-3</span>
-                <span> <label for="dGain">D:</label><input type="number" id="dGain" value="0" step="10"> e-3</span>
-            </div>
-            <div id="func-config" style="display: none;">
-                <span> <label for="numerator">分子:</label><input type="text" id="numerator" value="1"> </span>
-                <span> <label for="denominator">分母:</label><input type="text" id="denominator" value="1"> </span>
-            </div>
-        </fieldset>
-        <fieldset id="statusPanel" class="panel" style="display: grid; grid-template-columns: repeat(3, 1fr);">
-            <legend>实时状态</legend>
-            <div>目标位置：<span id="targetPosition">(0, 0)</span> px</div>
-            <div>跟踪位置：<span id="chaserPosition">(0, 0)</span> px</div>
-            <div>偏差量：<span id="mismatch">  0</span> px</div>
+    <!-- <div style="width: 90%;height:100%;top:0px"> -->
+        <div id="panelContainer">
 
-            <div>目标速度：<span id="targetSpeed">0</span> px/s</div>
-            <div>跟踪速度：<span id="chaserSpeed">0</span> px/s</div>
-            <div class="hide">全局时钟：<span id="globalClock">0</span> s</div>
+            <fieldset id="controlPanel" class="grid-container panel", style="grid-template-columns: 1fr 2fr 1fr;">
+                <legend>控制面板</legend>
+                <!-- 按钮区域 -->
+                <div id="mode" class="grid-container" style="grid-template-rows: repeat(4, 1fr); margin-right: 4em;">
+                    <div class="grid-item">
+                        <button id="mode-pid" class="btn">PID控制</button>
+                    </div>
+                    <div class="grid-item">
+                        <button id="mode-func" class="btn">传递函数</button>
+                    </div>
+                    <div class="grid-item">
+                        <button id="mode-canvas" class="btn">图窗</button>
+                    </div>
+                    <div class="grid-item">
+                        <button id="reset" class="btn">重置</button>
+                    </div>
+                </div>
+                <!-- PID模式参数 -->
+                <div id="pid-config">
+                    <span> <label for="pGain">P:</label><input type="number" id="pGain" value="50" step="10" min="0" max="1000"> e-3</span>
+                    <span> <label for="iGain">I:</label><input type="number" id="iGain" value="0" step="1" min="0" max="1000"> e-3</span>
+                    <span> <label for="dGain">D:</label><input type="number" id="dGain" value="0" step="10" min="0" max="1000"> e-3</span>
+                </div>
+                <!-- 传递函数模式参数 -->
+                <div id="func-config" style="display: none;">
+                    <span> <label for="numerator">分子:</label><input type="text" id="numerator" value="1"> </span>
+                    <span> <label for="denominator">分母:</label><input type="text" id="denominator" value="1"> </span>
+                </div>
+                <div>
+                    <img src="./mrzhou.gif" alt="gif" style="width: 100%; height: 100%;object-fit: contain;">
+                </div>
+            </fieldset>
 
-            <div>控制方程：<span id="transferFunction">G(s) = 1/s </span> </div>
+            <fieldset id="statusPanel" class="grid-container panel" style="grid-template-rows: repeat(2, 1fr); grid-template-columns: repeat(3, 1fr);">
+                <legend>实时状态</legend>
+                <div class="grid-item">目标位置：<span id="targetPosition">(0, 0)</span></div>
+                <div class="grid-item">跟踪位置：<span id="chaserPosition">(0, 0)</span></div>
+                <div class="grid-item">偏差量：<span id="mismatch">  0</span></div>
 
-        </fieldset>
-    </div>
+                <div class="grid-item">目标速度：<span id="targetSpeed">0</span></div>
+                <div class="grid-item">跟踪速度：<span id="chaserSpeed">0</span></div>
+                <div class="grid-item">控制方程：<span id="transferFunction">G(s) = 1/s </span></div>
 
-    <div id="trackingArea">
-        <div id="target"></div>
-        <div id="chaser"></div>
-    </div>
+            </fieldset>
+        </div>
 
-    <div id="footnote">copyright@2024</div>
+        <div id="canvas2D">
+            <div id="target"></div>
+            <div id="chaser"></div>
+        </div>
 
+        <!-- <div id="canvas1DContainer" style="border: 1px solid #aaa;">
+            <canvas id="canvas1D" width="800" height="600"></canvas>
+        </div> -->
+
+        <div id="footnote">copyright@2024</div>
+    <!-- </div> -->
 
     <script>
         document.addEventListener("DOMContentLoaded", () => {
             const panelContainer = document.getElementById('panelContainer');
-            const trackingArea = document.getElementById('trackingArea');
+            const canvas2D = document.getElementById('canvas2D');
             const target = document.getElementById('target');
             const chaser = document.getElementById('chaser');
             const pGainInput = document.getElementById('pGain');
@@ -218,12 +241,13 @@
             }
             target.style.width = `${targetStyle.width}px`;
             target.style.height = `${targetStyle.height}px`;
-            target.style.left = `0px`;
-            target.style.top = `0px`;
+            const rect = canvas2D.getBoundingClientRect();
+            target.style.left = `${rect.width/2}px`;
+            target.style.top = `${rect.height/2}px`;
             chaser.style.width = `${chaserStyle.width}px`;
             chaser.style.height = `${chaserStyle.height}px`;
-            chaser.style.left = `0px`;
-            chaser.style.top = `0px`;
+            chaser.style.left = `${rect.width/2}px`;
+            chaser.style.top = `${rect.height/2}px`;
 
             // 解析传递函数
             function parsePidTF(p, i, d){
@@ -239,18 +263,19 @@
             const funcConfig = document.getElementById('func-config');
             const modePID = document.getElementById('mode-pid');
             const modeFunc = document.getElementById('mode-func');
-            modePID.addEventListener('change', () => {
-                if (modePID.checked) {
-                    funcConfig.style.display = 'none';
-                    pidConfig.style.display = 'block';
-                }
+
+            modePID.addEventListener('click', () => {
+                modePID.classList.add('btn-down');
+                modeFunc.classList.remove('btn-down');
+                funcConfig.style.setProperty('display', 'none');
+                pidConfig.style.setProperty('display', 'block');
             });
-            modeFunc.addEventListener('change', () => {
-                if (modeFunc.checked) {
-                    pidConfig.style.display = 'none';
-                    funcConfig.style.display = 'grid';
-                    funcConfig.style.setProperty('grid-template-rows', 'auto');
-                }
+            modeFunc.addEventListener('click', () => {
+                modeFunc.classList.add('btn-down');
+                modePID.classList.remove('btn-down');
+                pidConfig.style.setProperty('display', 'none');
+                funcConfig.style.setProperty('display', 'grid');
+                funcConfig.style.setProperty('grid-template-rows', '1fr 1fr');
             });
 
             // 监听更新 PID 参数
@@ -261,6 +286,10 @@
                 pGain = parseFloat(pGainInput.value);
                 iGain = parseFloat(iGainInput.value);
                 dGain = parseFloat(dGainInput.value);
+                // 检查并限制参数范围
+                pGain = Math.max(0, pGain);
+                iGain = Math.max(0, iGain);
+                dGain = Math.max(0, dGain);
                 transferFunction.textContent = parsePidTF(pGain*0.001, iGain*0.001, dGain*0.001);
             }
             pGainInput.addEventListener('input', updatePIDParams);
@@ -268,18 +297,8 @@
             dGainInput.addEventListener('input', updatePIDParams);
             updatePIDParams();
 
-            // // 光标移动事件绑定
-            // trackingArea.addEventListener('mousemove', (event) => {
-            //     const rect = trackingArea.getBoundingClientRect();
-            //     targetX = event.clientX - rect.left;
-            //     targetY = event.clientY - rect.top;
-            //     target.style.left = `${targetX - targetStyle.width/2}px`;
-            //     target.style.top = `${targetY - targetStyle.height/2}px`;
-            // });
-
-
-            // 当鼠标在trackingArea内按下时，设置target位置并开始跟踪移动
-            trackingArea.addEventListener('mousedown', (e) => {
+            // 当鼠标在canvas2D内按下时，设置target位置并开始跟踪移动
+            canvas2D.addEventListener('mousedown', (e) => {
                 if (e.button === 0) { // 0代表鼠标左键
                     isMouseDown = true;
                     setTargetPosition(e);
@@ -287,33 +306,30 @@
             });
 
             // 当鼠标移动时，如果isMouseDown为true，则更新target位置
-            trackingArea.addEventListener('mousemove', (e) => {
+            canvas2D.addEventListener('mousemove', (e) => {
                 if (isMouseDown) {
                     setTargetPosition(e);
                 }
             });
 
-            // 当鼠标松开或离开trackingArea时，停止跟踪
-            trackingArea.addEventListener('mouseup', () => isMouseDown = false);
-            // trackingArea.addEventListener('mouseleave', () => isMouseDown = false);
+            // 当鼠标松开或离开canvas2D时，停止跟踪
+            canvas2D.addEventListener('mouseup', () => isMouseDown = false);
+            // canvas2D.addEventListener('mouseleave', () => isMouseDown = false);
 
             // 设置target的位置到鼠标位置的函数
             function setTargetPosition(e) {
-                const rect = trackingArea.getBoundingClientRect(); // 获取trackingArea的位置和大小
-                const x = e.clientX - rect.left; // 计算鼠标位置相对于trackingArea的X坐标
-                const y = e.clientY - rect.top; // 计算鼠标位置相对于trackingArea的Y坐标
-                // 更新target的位置
-                target.style.left = `${x - targetStyle.width / 2}px`; // 调整位置使光标位于target中心
+                const rect = canvas2D.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                target.style.left = `${x - targetStyle.width / 2}px`;
                 target.style.top = `${y - targetStyle.height / 2}px`;
             }
 
-
-
-            trackingArea.addEventListener('mouseenter', () => {
-                trackingArea.style.cursor = 'crosshair';
+            canvas2D.addEventListener('mouseenter', () => {
+                canvas2D.style.cursor = 'crosshair';
             });
-            trackingArea.addEventListener('mouseleave', () => {
-                trackingArea.style.cursor = 'auto';
+            canvas2D.addEventListener('mouseleave', () => {
+                canvas2D.style.cursor = 'auto';
                 isMouseDown = false;
             });
 
@@ -349,19 +365,17 @@
                 // 记录状态
                 targetHistory.record(targetX, targetY);
                 chaserHistory.record(chaserX, chaserY);
-                // 全局时钟显示
-                globalClockDisplay.textContent = (globalClock / 1000).toFixed(1);
                 // 偏差显示
                 mismatch.textContent = Math.sqrt(errorX**2 + errorY**2).toFixed(1);
                 // 位置速度显示
                 tp0 = targetHistory.get(1)[0];
-                targetPosition.textContent = `(${tp0.x.toFixed(1)}, ${tp0.y.toFixed(1)})`;
+                targetPosition.textContent = `(${tp0.x.toFixed(0)}, ${tp0.y.toFixed(0)})`;
                 tp1 = targetHistory.get(2)[0];
                 speed = Math.sqrt((tp0.x - tp1.x)**2 + (tp0.y - tp1.y)**2) / (globalClockInterval*10 / 1000);
                 targetSpeed.textContent = speed.toFixed(1);
 
                 cp0 = chaserHistory.get(1)[0];
-                chaserPosition.textContent = `(${cp0.x.toFixed(1)}, ${cp0.y.toFixed(1)})`;
+                chaserPosition.textContent = `(${cp0.x.toFixed(0)}, ${cp0.y.toFixed(0)})`;
                 cp1 = chaserHistory.get(2)[0];
                 speed = Math.sqrt((cp0.x - cp1.x)**2 + (cp0.y - cp1.y)**2) / (globalClockInterval*10 / 1000);
                 chaserSpeed.textContent = speed.toFixed(1);
@@ -379,7 +393,29 @@
             setInterval(() => {
                 updateStates();
             }, globalClockInterval*10);
+
+            // 重置按钮
+            const resetButton = document.getElementById('reset');
+            resetButton.addEventListener('click', () => {
+                chaserX = 0;
+                chaserY = 0;
+                chaser.style.left = `${chaserX}px`;
+                chaser.style.top = `${chaserY}px`;
+                integralX = 0;
+                integralY = 0;
+                previousErrorX = 0;
+                previousErrorY = 0;
+                pGainInput.value = 50;
+                iGainInput.value = 0;
+                dGainInput.value = 0;
+            });
+
+            
+
+
         });
     </script>
+    <!-- TODO -->
+    <!-- <script src="https://cdn.staticfile.net/Chart.js/3.9.1/chart.js"></script> -->
 </body>
 </html>

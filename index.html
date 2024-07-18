@@ -286,6 +286,9 @@
                 pGain = parseFloat(pGainInput.value);
                 iGain = parseFloat(iGainInput.value);
                 dGain = parseFloat(dGainInput.value);
+                pGain = isNaN(pGain) ? 0 : pGain;
+                iGain = isNaN(iGain) ? 0 : iGain;
+                dGain = isNaN(dGain) ? 0 : dGain;
                 // 检查并限制参数范围
                 pGain = Math.max(0, pGain);
                 iGain = Math.max(0, iGain);

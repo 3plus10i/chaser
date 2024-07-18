@@ -86,6 +86,7 @@
         }
 
         #chaser {
+            pointer-events: none; /* 屏蔽target的鼠标事件响应 */
             border: 2px solid #10aeff;
         }
 
@@ -204,8 +205,9 @@
             let integralX = 0, integralY = 0;
             let globalClock = 0.0;
             const globalClockInterval = 15; // 15ms 更新一次(约为 66.67Hz)
+            let isMouseDown = false;
 
-            // 配置鼠标和跟随者样式
+            // 配置光标和跟随者样式
             targetStyle = {
                 width: 8,
                 height: 8,
@@ -216,8 +218,12 @@
             }
             target.style.width = `${targetStyle.width}px`;
             target.style.height = `${targetStyle.height}px`;
+            target.style.left = `0px`;
+            target.style.top = `0px`;
             chaser.style.width = `${chaserStyle.width}px`;
             chaser.style.height = `${chaserStyle.height}px`;
+            chaser.style.left = `0px`;
+            chaser.style.top = `0px`;
 
             // 解析传递函数
             function parsePidTF(p, i, d){
@@ -262,25 +268,62 @@
             dGainInput.addEventListener('input', updatePIDParams);
             updatePIDParams();
 
-            // 鼠标移动事件绑定
-            trackingArea.addEventListener('mousemove', (event) => {
-                const rect = trackingArea.getBoundingClientRect();
-                targetX = event.clientX - rect.left;
-                targetY = event.clientY - rect.top;
-                target.style.left = `${targetX - targetStyle.width/2}px`;
-                target.style.top = `${targetY - targetStyle.height/2}px`;
+            // // 光标移动事件绑定
+            // trackingArea.addEventListener('mousemove', (event) => {
+            //     const rect = trackingArea.getBoundingClientRect();
+            //     targetX = event.clientX - rect.left;
+            //     targetY = event.clientY - rect.top;
+            //     target.style.left = `${targetX - targetStyle.width/2}px`;
+            //     target.style.top = `${targetY - targetStyle.height/2}px`;
+            // });
+
+
+            // 当鼠标在trackingArea内按下时，设置target位置并开始跟踪移动
+            trackingArea.addEventListener('mousedown', (e) => {
+                if (e.button === 0) { // 0代表鼠标左键
+                    isMouseDown = true;
+                    setTargetPosition(e);
+                }
             });
+
+            // 当鼠标移动时，如果isMouseDown为true，则更新target位置
+            trackingArea.addEventListener('mousemove', (e) => {
+                if (isMouseDown) {
+                    setTargetPosition(e);
+                }
+            });
+
+            // 当鼠标松开或离开trackingArea时，停止跟踪
+            trackingArea.addEventListener('mouseup', () => isMouseDown = false);
+            // trackingArea.addEventListener('mouseleave', () => isMouseDown = false);
+
+            // 设置target的位置到鼠标位置的函数
+            function setTargetPosition(e) {
+                const rect = trackingArea.getBoundingClientRect(); // 获取trackingArea的位置和大小
+                const x = e.clientX - rect.left; // 计算鼠标位置相对于trackingArea的X坐标
+                const y = e.clientY - rect.top; // 计算鼠标位置相对于trackingArea的Y坐标
+                // 更新target的位置
+                target.style.left = `${x - targetStyle.width / 2}px`; // 调整位置使光标位于target中心
+                target.style.top = `${y - targetStyle.height / 2}px`;
+            }
+
+
+
             trackingArea.addEventListener('mouseenter', () => {
-                trackingArea.style.cursor = 'none';
+                trackingArea.style.cursor = 'crosshair';
             });
             trackingArea.addEventListener('mouseleave', () => {
                 trackingArea.style.cursor = 'auto';
+                isMouseDown = false;
             });
 
             // 定频更新chaser
             function updateChaser() {
 
                 // 计算和更新跟随者位置
+                targetX = parseInt(target.style.left) + targetStyle.width/2;
+                targetY = parseInt(target.style.top) + targetStyle.height/2;
+
                 errorX = targetX - chaserX;
                 errorY = targetY - chaserY;
 

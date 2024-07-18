@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cursor Chaser</title>
+    <style>
+        body {
+            background-color: #eeeeee;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            height: 100vh; /* 使容器高度占满视口高度 */
+        }
+        
+        
+        #panelContainer {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 90%;
+            border: 1px solid #aaa;
+            margin: 10px 0;
+        }
+
+        #panelContainer .panel {
+            background-color: #f7f7f7;
+            border: 1px solid #aaa;
+            width: 80%;
+            margin-bottom: 5px;
+        }
+        
+
+        #controlPanel {
+            display: flex;
+            height: 4em;
+        }
+
+        #controlPanel input {
+            width: 4em; /* 设置 PID 控制输入框的宽度 */
+        }
+
+        #controlPanel span {
+            margin: 0 1em;
+        }
+
+
+        #statusPanel {
+            display: flex;
+        }
+
+        #statusPanel div {
+            margin: 0 1em;
+        }
+
+
+        fieldset legend {
+            font-size: 0.8em;
+            font-weight: bold;
+        }
+        
+
+        #trackingArea {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            width: 90%;
+            height: 70%;
+            background-color: #fff;
+            border: 1px solid #aaa;
+        }
+        
+
+        #target, #chaser {
+            position: absolute;
+            border-radius: 50%; /* 圆形 */
+        }
+
+        #target {
+            pointer-events: none; /* 屏蔽target的鼠标事件响应 */
+            background-color: #74a800;
+            border: 2px solid #74a800;
+        }
+
+        #chaser {
+            border: 2px solid #10aeff;
+        }
+
+
+        .hide {
+            display: none;
+        }
+        
+
+        #footnote {
+            font-size: 0.8em;
+            color: #999;
+            bottom: 0;
+            left: 0;
+            width: 90%;
+        }
+
+    </style>
+</head>
+<body>
+    <div>Chaser - 可视化你的控制函数</div>
+    <div id="panelContainer">
+        <fieldset id="controlPanel" class="panel" style="display: grid; grid-template-columns: repeat(2, 1fr);">
+            <legend>控制面板</legend>
+            <div style="display: grid; grid-template-rows: 2;">
+                <span>
+                    <input type="radio" id="mode-pid" name="controller" checked><label for="pid">PID</label>
+                </span>
+                <span>
+                    <input type="radio" id="mode-func" name="controller"><label for="transferFunction">传递函数</label>
+                </span>
+            </div>
+            <div id="pid-config">
+                <span> <label for="pGain">P:</label><input type="number" id="pGain" value="50" step="10"> e-3</span>
+                <span> <label for="iGain">I:</label><input type="number" id="iGain" value="0" step="10"> e-3</span>
+                <span> <label for="dGain">D:</label><input type="number" id="dGain" value="0" step="10"> e-3</span>
+            </div>
+            <div id="func-config" style="display: none;">
+                <span> <label for="numerator">分子:</label><input type="text" id="numerator" value="1"> </span>
+                <span> <label for="denominator">分母:</label><input type="text" id="denominator" value="1"> </span>
+            </div>
+        </fieldset>
+        <fieldset id="statusPanel" class="panel" style="display: grid; grid-template-columns: repeat(3, 1fr);">
+            <legend>实时状态</legend>
+            <div>目标位置：<span id="targetPosition">(0, 0)</span> px</div>
+            <div>跟踪位置：<span id="chaserPosition">(0, 0)</span> px</div>
+            <div>偏差量：<span id="mismatch">  0</span> px</div>
+
+            <div>目标速度：<span id="targetSpeed">0</span> px/s</div>
+            <div>跟踪速度：<span id="chaserSpeed">0</span> px/s</div>
+            <div class="hide">全局时钟：<span id="globalClock">0</span> s</div>
+
+            <div>控制方程：<span id="transferFunction">G(s) = 1/s </span> </div>
+
+        </fieldset>
+    </div>
+
+    <div id="trackingArea">
+        <div id="target"></div>
+        <div id="chaser"></div>
+    </div>
+
+    <div id="footnote">copyright@2024</div>
+
+
+    <script>
+        document.addEventListener("DOMContentLoaded", () => {
+            const panelContainer = document.getElementById('panelContainer');
+            const trackingArea = document.getElementById('trackingArea');
+            const target = document.getElementById('target');
+            const chaser = document.getElementById('chaser');
+            const pGainInput = document.getElementById('pGain');
+            const iGainInput = document.getElementById('iGain');
+            const dGainInput = document.getElementById('dGain');
+            const globalClockDisplay = document.getElementById('globalClock');
+            const mismatch = document.getElementById('mismatch');
+            const targetSpeed = document.getElementById('targetSpeed');
+            const chaserSpeed = document.getElementById('chaserSpeed');
+            const targetPosition = document.getElementById('targetPosition');
+            const chaserPosition = document.getElementById('chaserPosition');
+            const transferFunction = document.getElementById('transferFunction');
+
+            // 定义记录器类
+            class Recorder {
+                constructor(length) {
+                    this.length = length;
+                    this.history = new Array(length);
+                    this.index = 0;
+                    for (let i = 0; i < length; i++) {
+                        this.history[i] = {x: 0, y: 0};
+                    }
+                }
+                record(x_, y_) {
+                    this.history[this.index] = { x: x_, y: y_ };
+                    this.index = (this.index + 1) % this.length;
+                }
+                get(n = this.length) {
+                    // 按照时间顺序返回最近的n条记录
+                    n = Math.min(n, this.length);
+                    let records = [];
+                    for (let i = 0; i < n; i++) {
+                        let index = (this.index - n + i + this.length) % this.length;
+                        records.push(this.history[index]);
+                    }
+                    return records;
+                }
+            }
+            let targetHistory = new Recorder(50);
+            let chaserHistory = new Recorder(50);
+
+            // 初始化变量
+            let targetX = 0, targetY = 0;
+            let chaserX = 0, chaserY = 0;
+            let errorX = 0, errorY = 0;
+            let previousErrorX = 0, previousErrorY = 0;
+            let integralX = 0, integralY = 0;
+            let globalClock = 0.0;
+            const globalClockInterval = 15; // 15ms 更新一次(约为 66.67Hz)
+
+            // 配置鼠标和跟随者样式
+            targetStyle = {
+                width: 8,
+                height: 8,
+            }
+            chaserStyle = {
+                width: 10,
+                height: 10,
+            }
+            target.style.width = `${targetStyle.width}px`;
+            target.style.height = `${targetStyle.height}px`;
+            chaser.style.width = `${chaserStyle.width}px`;
+            chaser.style.height = `${chaserStyle.height}px`;
+
+            // 解析传递函数
+            function parsePidTF(p, i, d){
+                let pterm='', iterm='', dterm='';
+                if (p != 0) {pterm = `${p}`;}
+                if (i != 0) {iterm = ` + ${i}/s`;}
+                if (d != 0) {dterm = ` + ${d}s`;}
+                return `G(s) = ${pterm}${iterm}${dterm}`;
+            }
+
+            // 监听更新控制器模式
+            const pidConfig = document.getElementById('pid-config');
+            const funcConfig = document.getElementById('func-config');
+            const modePID = document.getElementById('mode-pid');
+            const modeFunc = document.getElementById('mode-func');
+            modePID.addEventListener('change', () => {
+                if (modePID.checked) {
+                    funcConfig.style.display = 'none';
+                    pidConfig.style.display = 'block';
+                }
+            });
+            modeFunc.addEventListener('change', () => {
+                if (modeFunc.checked) {
+                    pidConfig.style.display = 'none';
+                    funcConfig.style.display = 'grid';
+                    funcConfig.style.setProperty('grid-template-rows', 'auto');
+                }
+            });
+
+            // 监听更新 PID 参数
+            let pGain = parseFloat(pGainInput.value);
+            let iGain = parseFloat(iGainInput.value);
+            let dGain = parseFloat(dGainInput.value);
+            function updatePIDParams() {
+                pGain = parseFloat(pGainInput.value);
+                iGain = parseFloat(iGainInput.value);
+                dGain = parseFloat(dGainInput.value);
+                transferFunction.textContent = parsePidTF(pGain*0.001, iGain*0.001, dGain*0.001);
+            }
+            pGainInput.addEventListener('input', updatePIDParams);
+            iGainInput.addEventListener('input', updatePIDParams);
+            dGainInput.addEventListener('input', updatePIDParams);
+            updatePIDParams();
+
+            // 鼠标移动事件绑定
+            trackingArea.addEventListener('mousemove', (event) => {
+                const rect = trackingArea.getBoundingClientRect();
+                targetX = event.clientX - rect.left;
+                targetY = event.clientY - rect.top;
+                target.style.left = `${targetX - targetStyle.width/2}px`;
+                target.style.top = `${targetY - targetStyle.height/2}px`;
+            });
+            trackingArea.addEventListener('mouseenter', () => {
+                trackingArea.style.cursor = 'none';
+            });
+            trackingArea.addEventListener('mouseleave', () => {
+                trackingArea.style.cursor = 'auto';
+            });
+
+            // 定频更新chaser
+            function updateChaser() {
+
+                // 计算和更新跟随者位置
+                errorX = targetX - chaserX;
+                errorY = targetY - chaserY;
+
+                integralX += errorX;
+                integralY += errorY;
+
+                const derivativeX = errorX - previousErrorX;
+                const derivativeY = errorY - previousErrorY;
+
+                chaserX += pGain/1000 * errorX + iGain/1000 * integralX + dGain/1000 * derivativeX;
+                chaserY += pGain/1000 * errorY + iGain/1000 * integralY + dGain/1000 * derivativeY;
+
+                chaser.style.left = `${chaserX - chaserStyle.width/2}px`;
+                chaser.style.top = `${chaserY - chaserStyle.height/2}px`;
+
+                previousErrorX = errorX;
+                previousErrorY = errorY;
+
+            }
+
+            // 定频更新状态
+            function updateStates() {
+                // 记录状态
+                targetHistory.record(targetX, targetY);
+                chaserHistory.record(chaserX, chaserY);
+                // 全局时钟显示
+                globalClockDisplay.textContent = (globalClock / 1000).toFixed(1);
+                // 偏差显示
+                mismatch.textContent = Math.sqrt(errorX**2 + errorY**2).toFixed(1);
+                // 位置速度显示
+                tp0 = targetHistory.get(1)[0];
+                targetPosition.textContent = `(${tp0.x.toFixed(1)}, ${tp0.y.toFixed(1)})`;
+                tp1 = targetHistory.get(2)[0];
+                speed = Math.sqrt((tp0.x - tp1.x)**2 + (tp0.y - tp1.y)**2) / (globalClockInterval*10 / 1000);
+                targetSpeed.textContent = speed.toFixed(1);
+
+                cp0 = chaserHistory.get(1)[0];
+                chaserPosition.textContent = `(${cp0.x.toFixed(1)}, ${cp0.y.toFixed(1)})`;
+                cp1 = chaserHistory.get(2)[0];
+                speed = Math.sqrt((cp0.x - cp1.x)**2 + (cp0.y - cp1.y)**2) / (globalClockInterval*10 / 1000);
+                chaserSpeed.textContent = speed.toFixed(1);
+                
+            }
+
+            // 定频更新
+            setInterval(() => {
+                globalClock += globalClockInterval;
+                updateChaser();
+            }, globalClockInterval);
+
+
+            // 低频更新状态显示
+            setInterval(() => {
+                updateStates();
+            }, globalClockInterval*10);
+        });
+    </script>
+</body>
+</html>
